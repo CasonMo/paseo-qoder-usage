@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import type { TextStyle, ViewStyle } from "react-native";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import type { QuotaBucket } from "../shared/quota";
-import { useQuotaActions, useQuotaState } from "./data";
+import { useQuotaActions, useQuotaState, useUpdateCheck } from "./data";
 import { formatDate, formatNumber, formatTime } from "./format";
 
 const INTERVALS: Array<{ minutes: number; label: string }> = [
@@ -33,6 +33,8 @@ export function QoderUsageScreen({ theme, layout }: PluginScreenProps) {
   const query = useQuotaState();
   const actions = useQuotaActions();
   const [busy, setBusy] = useState(false);
+  const [updateDismissed, setUpdateDismissed] = useState(false);
+  const updateQuery = useUpdateCheck();
   const styles = useMemo(
     () =>
       ({
@@ -46,6 +48,20 @@ export function QoderUsageScreen({ theme, layout }: PluginScreenProps) {
         banner: { borderRadius: 10, padding: 10, backgroundColor: theme.colors.surface1 },
         bannerError: { borderLeftWidth: 3, borderLeftColor: theme.colors.statusDanger },
         bannerText: { fontSize: 11, color: theme.colors.foreground },
+        updateBanner: {
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 8,
+          backgroundColor: theme.colors.surface2,
+          borderColor: theme.colors.border,
+          borderWidth: 1,
+          borderRadius: 8,
+          paddingHorizontal: 10,
+          paddingVertical: 6,
+        },
+        updateText: { flex: 1, fontSize: 11, color: theme.colors.foreground, lineHeight: 16 },
+        updateDismiss: { paddingHorizontal: 4, paddingVertical: 2 },
+        updateDismissText: { fontSize: 12, color: theme.colors.foregroundMuted },
         section: { backgroundColor: theme.colors.surface1, borderRadius: 10, padding: 12, gap: 10 },
         sectionTitle: { fontSize: 13, fontWeight: "600", color: theme.colors.foreground },
         planLine: { fontSize: 11, color: theme.colors.foregroundMuted },
@@ -142,6 +158,17 @@ export function QoderUsageScreen({ theme, layout }: PluginScreenProps) {
             <Text style={styles.buttonText}>{busy || data?.fetching ? "刷新中…" : "刷新"}</Text>
           </Pressable>
         </View>
+
+        {updateQuery.data?.updateAvailable && !updateDismissed ? (
+          <View style={styles.updateBanner}>
+            <Text style={styles.updateText}>
+              发现新版本 v{updateQuery.data.latestVersion}（当前 v{updateQuery.data.currentVersion}）· 更新：paseo plugin update qoder-usage
+            </Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="关闭" onPress={() => setUpdateDismissed(true)} style={styles.updateDismiss}>
+              <Text style={styles.updateDismissText}>✕</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         {needsInstall ? (
           <View style={styles.section}>

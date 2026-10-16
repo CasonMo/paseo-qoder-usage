@@ -54,6 +54,18 @@ export const qoderConfigSetRpc = defineRpc({
   output: quotaStateSchema,
 });
 
+export const qoderUpdateCheckRpc = defineRpc({
+  name: "qoder.update.check",
+  input: z.object({}),
+  output: z.object({
+    currentVersion: z.string(),
+    latestVersion: z.string(),
+    latestCommit: z.string(),
+    updateAvailable: z.boolean(),
+    checkedAt: z.string(),
+  }),
+});
+
 export type QuotaBucket = z.infer<typeof quotaBucketSchema>;
 export type QuotaSnapshot = z.infer<typeof quotaSnapshotSchema>;
 export type QuotaState = z.infer<typeof quotaStateSchema>;

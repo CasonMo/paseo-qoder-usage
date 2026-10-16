@@ -1,6 +1,6 @@
 {
   "name": "paseo-qoder-usage",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Qoder 账号额度（Credits）展示：侧边栏实时额度摘要 + 全屏明细，支持配置定时自动更新",
   "license": "MIT",
   "repository": {

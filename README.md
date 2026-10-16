@@ -5,6 +5,7 @@ Paseo plugin: Qoder account quota (Credits) in the sidebar plus a detail screen 
 - Sidebar footer row: Plan Credits and Org Resource Package summaries
 - Screen: plan info, credits progress bars with 80%/95% warning colors, quota-exceeded notice, manual refresh
 - Auto refresh: off / 5m / 15m / 30m / 1h / 6h / 24h
+- Update check: a banner appears at the top of the quota screen when the registry listing has a newer version (reads only the public registry record and the pinned package.json; no user data is sent)
 
 ## Development
 

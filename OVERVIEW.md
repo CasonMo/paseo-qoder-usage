@@ -22,5 +22,5 @@
 
 - 读取：本机 qodercli 登录态（经由官方 SDK）与 Qoder 服务返回的额度数据。
 - 写入：仅本机插件数据目录，用于缓存额度和保存自动更新设置。
-- 网络：读取额度时由 SDK 访问 Qoder 服务；未安装 SDK 或未触发读取时不会发起网络请求。
+- 网络：读取额度时由 SDK 访问 Qoder 服务；未安装 SDK 或未触发读取时不会发起额度请求。另有版本更新检查（每小时最多一次，仅读取公开的 registry 记录与对应提交的 package.json，来自 raw.githubusercontent.com、api.github.com，不发送任何数据）。
 - 不发送 prompts、代码或任何文件内容。
