@@ -1,0 +1,8 @@
+{
+  "name": "qoder-usage-sdk-runtime",
+  "version": "0.0.0",
+  "private": true,
+  "dependencies": {
+    "@qoder-ai/qoder-agent-sdk": "1.0.53"
+  }
+}

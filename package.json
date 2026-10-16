@@ -1,0 +1,35 @@
+{
+  "name": "paseo-qoder-usage",
+  "version": "0.1.0",
+  "description": "Qoder 账号额度（Credits）展示：侧边栏实时额度摘要 + 全屏明细，支持配置定时自动更新",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CasonMo/paseo-qoder-usage.git"
+  },
+  "files": [
+    "paseo-plugin.json",
+    "OVERVIEW.md",
+    "index.client.tsx",
+    "index.server.ts",
+    "client/",
+    "server/",
+    "shared/",
+    "sdk-runtime/",
+    "assets/"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build:sdk-runtime": "node scripts/build-sdk-runtime.mjs"
+  },
+  "devDependencies": {
+    "@getpaseo/plugin": "0.11.4",
+    "@tanstack/react-query": "^5.90.11",
+    "@types/node": "^24.19.2",
+    "@types/react": "~19.2.0",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "typescript": "^5.9.3",
+    "zod": "^4.4.3"
+  }
+}

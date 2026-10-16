@@ -1,0 +1,11 @@
+{
+  "id": "qoder-usage",
+  "name": "Qoder Usage",
+  "description": "Qoder 账号额度（Credits）实时展示：侧边栏 + 全屏明细，支持配置定时自动更新",
+  "media": [
+    "assets/screenshot.png"
+  ],
+  "requirements": {
+    "paseo": ">=0.11.2"
+  }
+}
