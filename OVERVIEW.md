@@ -24,3 +24,32 @@
 - 写入：仅本机插件数据目录，用于缓存额度和保存自动更新设置。
 - 网络：读取额度时由 SDK 访问 Qoder 服务；未安装 SDK 或未触发读取时不会发起额度请求。另有版本更新检查（每小时最多一次，仅读取公开的 registry 记录与对应提交的 package.json，来自 raw.githubusercontent.com、api.github.com，不发送任何数据）。
 - 不发送 prompts、代码或任何文件内容。
+
+---
+
+# Qoder Usage (English)
+
+View Qoder account quota (Credits) inside Paseo.
+
+A "Qoder quota" row at the bottom of the sidebar shows two used/total summaries: Plan Credits first, then the Org resource package (for example `548/3000,0/3000`). Clicking it opens a full-screen detail view: plan type and expiry, Plan Credits, Add-on Credits, and the Org resource package, with progress bars changing color at 80% and 95%, plus a quota-exceeded notice and manual refresh.
+
+## How it works
+
+Quota is read through the official Qoder Agent SDK: the SDK reuses the local qodercli login session and asks the Qoder service for the account quota. The plugin itself never reads, stores, or decrypts your credentials.
+
+## Setup
+
+- qodercli must be installed and logged in on this machine; quota is account-level and shows the currently logged-in account.
+- Before the first quota read, the UI prompts you to download the Qoder Agent SDK (about 1MB, from the npm registry, dependency tree fixed by the shipped lockfile). Nothing downloads until you click "Download and install"; without installing, no file is written and no network request is made.
+- Supports macOS and Linux; requires Paseo 0.11.2 or later.
+
+## Auto refresh
+
+Choose off / 5 min / 15 min / 30 min / 1 hour / 6 hours / 24 hours. When enabled, the plugin reads the quota once in the background at the chosen interval; with "off" only manual refresh runs. Settings are stored in the local plugin data directory.
+
+## Data and permissions
+
+- Reads: the local qodercli login session (through the official SDK) and the quota data returned by the Qoder service.
+- Writes: only the local plugin data directory, to cache the quota and save the auto refresh setting.
+- Network: the SDK talks to the Qoder service when a quota read runs; without the SDK installed or a read triggered, no quota request is made. There is also an update check (at most once an hour, reading only the public registry record and the pinned package.json from raw.githubusercontent.com and api.github.com, sending no data).
+- No prompts, code, or file contents are sent.

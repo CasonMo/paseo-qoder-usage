@@ -1,7 +1,7 @@
 {
   "id": "qoder-usage",
   "name": "Qoder Usage",
-  "description": "Qoder 账号额度（Credits）实时展示：侧边栏 + 全屏明细，支持配置定时自动更新",
+  "description": "Qoder 账号额度（Credits）实时展示：侧边栏 + 全屏明细，支持配置定时自动更新 / Qoder account quota (Credits) in the sidebar plus a detail screen, with configurable auto refresh",
   "media": [
     "assets/screenshot.png"
   ],
