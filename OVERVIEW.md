@@ -12,7 +12,7 @@ Quota is read through the official Qoder SDKs: `@qoder-ai/qoder-agent-sdk` with 
 
 - qodercli or qodercn must be installed and logged in on this machine; quota is account-level and shows the currently logged-in account.
 - Before the first quota read, the UI prompts you to download the Qoder SDKs (international and China, about 30MB with locked dependencies, from the npm registry). Nothing downloads until you click "Download and install"; without installing, no SDK files are written and no quota request is made. The public version check may still run.
-- Supports macOS and Linux; requires Paseo 0.11.2 or later.
+- Supports macOS and Linux; requires Paseo 0.13.0-beta.1 or later.
 
 ## Auto refresh
 

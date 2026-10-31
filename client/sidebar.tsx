@@ -4,6 +4,7 @@ import { Text } from "react-native";
 import { combinedCredits, type QuotaSnapshot } from "../shared/quota";
 import { useQuotaState } from "./data";
 import { formatNumber, percentageOf } from "./format";
+import { QODER_USAGE_ICON } from "./icons";
 
 function totalValue(snapshot: QuotaSnapshot): string | null {
   const combined = combinedCredits(snapshot);
@@ -34,7 +35,7 @@ export function QoderUsageSidebarItem({ currentScreen, openScreen, theme }: Plug
   const label = sites.length === 1 && sites[0]?.site === "qoder-cn" ? "Qoder CN 额度" : "Qoder 额度";
   return (
     <SidebarRow
-      icon="Activity"
+      icon={{ svg: QODER_USAGE_ICON }}
       label={label}
       active={currentScreen?.screenId === "quota"}
       trailing={trailing ? <Text style={{ fontSize: 11, color: theme.colors.foregroundMuted }}>{trailing}</Text> : undefined}

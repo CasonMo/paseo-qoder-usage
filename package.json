@@ -1,6 +1,6 @@
 {
   "name": "paseo-qoder-usage",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Shows Qoder and Qoder CN account credits, aggregating every logged-in site and refreshing each independently.",
   "license": "MIT",
   "repository": {
@@ -24,7 +24,7 @@
     "build:sdk-runtime": "node scripts/build-sdk-runtime.mjs"
   },
   "devDependencies": {
-    "@getpaseo/plugin": "0.11.4",
+    "@getpaseo/plugin": "0.13.0-beta.1",
     "@tanstack/react-query": "^5.90.11",
     "@types/node": "^24.19.2",
     "@types/react": "~19.2.0",
