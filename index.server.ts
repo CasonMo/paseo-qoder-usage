@@ -6,7 +6,7 @@ import { qoderConfigSetRpc, qoderQuotaGetRpc, qoderQuotaRefreshRpc, qoderSdkInst
 export default function contribute(server: PluginServerContext) {
   const service = createQoderUsageService();
   server.handle(qoderQuotaGetRpc, () => service.get());
-  server.handle(qoderQuotaRefreshRpc, () => service.refresh());
+  server.handle(qoderQuotaRefreshRpc, (input) => service.refresh(input.site));
   server.handle(qoderSdkInstallRpc, () => service.installSdk());
   server.handle(qoderConfigSetRpc, (input) => service.setIntervalMinutes(input.intervalMinutes));
   server.handle(qoderUpdateCheckRpc, () => checkForUpdate());

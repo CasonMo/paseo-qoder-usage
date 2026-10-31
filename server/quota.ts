@@ -3,17 +3,19 @@ import { existsSync } from "node:fs";
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import type { QuotaBucket, QuotaSnapshot } from "../shared/quota";
+import type { QuotaBucket, QuotaSite, QuotaSnapshot } from "../shared/quota";
 import { SDK_RUNTIME_LOCK, SDK_RUNTIME_MANIFEST } from "./sdk-runtime.generated";
 
-const SDK_VERSION = "1.0.53";
+const SDK_VERSION = "qoder-agent-sdk@1.0.53 + qodercn-agent-sdk@1.0.58";
 const SDK_DIR = "qoder-usage";
 
 /**
- * Runs inside its own Node process. It reuses the local qodercli sign-in
- * (`qodercliAuth`) and asks the CLI for the official account quota snapshot.
+ * Runs inside its own Node process. It reuses the local qodercli/qoderclicn
+ * sign-in (`qodercliAuth`) and asks the official SDK for the account quota.
  */
-export const QODER_USAGE_SCRIPT = `import { qodercliAuth, query } from "@qoder-ai/qoder-agent-sdk";
+export const QODER_USAGE_SCRIPT = `const site = process.env.AGENT_USAGE_QODER_SITE === "qoder-cn" ? "qoder-cn" : "qoder";
+const sdk = await import(site === "qoder-cn" ? "@qodercn-ai/qodercn-agent-sdk" : "@qoder-ai/qoder-agent-sdk");
+const { qodercliAuth, query } = sdk;
 
 const cliPath = process.env.AGENT_USAGE_QODER_CLI_PATH || undefined;
 let release;
@@ -50,6 +52,7 @@ export function emptySnapshot(error: string | null): QuotaSnapshot {
     ok: false,
     error,
     fetchedAt: null,
+    site: null,
     userType: null,
     expiresAt: null,
     totalUsagePercentage: null,
@@ -123,7 +126,38 @@ async function resolveNpm(): Promise<string | null> {
   return await firstExisting(["/opt/homebrew/bin/npm", "/usr/local/bin/npm", ...(await nvmBinaryCandidates("npm"))]);
 }
 
-async function resolveQoderCli(): Promise<string | null> {
+async function versionedBinaries(dir: string, prefix: string): Promise<string[]> {
+  try {
+    const entries = await readdir(dir);
+    return entries
+      .filter((entry) => entry.startsWith(`${prefix}-`))
+      .sort((left, right) => right.localeCompare(left, undefined, { numeric: true }))
+      .map((entry) => join(dir, entry));
+  } catch {
+    return [];
+  }
+}
+
+export function detectAvailableSites(env: NodeJS.ProcessEnv = process.env): QuotaSite[] {
+  const globalDir = expandHome(env.QODER_CONFIG_DIR?.trim() || join(homedir(), ".qoder"));
+  const cnDir = expandHome(env.QODERCN_CONFIG_DIR?.trim() || join(homedir(), ".qoder-cn"));
+  const sites: QuotaSite[] = [];
+  if (existsSync(join(cnDir, ".auth", "user"))) sites.push("qoder-cn");
+  if (existsSync(join(globalDir, ".auth", "user"))) sites.push("qoder");
+  return sites;
+}
+
+async function resolveQoderCli(site: QuotaSite): Promise<string | null> {
+  if (site === "qoder-cn") {
+    const pathCli = (await which("qoderclicn")) ?? (await which("qodercn"));
+    if (pathCli) return pathCli;
+    const cnDir = expandHome(process.env.QODERCN_CONFIG_DIR?.trim() || join(homedir(), ".qoder-cn"));
+    return await firstExisting([
+      ...(await versionedBinaries(join(cnDir, "bin", "qoderclicn"), "qoderclicn")),
+      join(cnDir, "entry", "qodercn"),
+      join(homedir(), ".local", "bin", "qoderclicn"),
+    ]);
+  }
   const pathCli = await which("qodercli");
   if (pathCli) return pathCli;
   return await firstExisting([join(homedir(), ".local", "bin", "qodercli"), join(homedir(), ".qoder", "entry", "qoder")]);
@@ -185,6 +219,13 @@ function runProcess(command: string, args: string[], options: { env: NodeJS.Proc
   });
 }
 
+function redact(text: string): string {
+  return text
+    .replace(/\b(?:pt|jt|jrt|rt|dt)-[A-Za-z0-9._-]{6,}/g, "***")
+    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]{6,}/gi, "Bearer ***")
+    .replace(/\b[A-Fa-f0-9]{32,}\b/g, "***");
+}
+
 export interface SdkReady {
   ok: boolean;
   error: string | null;
@@ -193,7 +234,7 @@ export interface SdkReady {
 }
 
 export const SDK_INSTALL_MESSAGE =
-  "读取额度需要下载 Qoder Agent SDK（来自 npm registry，约 1MB，依赖树由随包锁文件固定）。点击「下载并安装」后才会下载。";
+  "读取额度需要下载 Qoder Agent SDK（国际版 + 国内版，来自 npm registry，含锁定依赖约 30MB）。点击「下载并安装」后才会下载。";
 
 /**
  * Prepares the SDK runtime. With `install: false` the download never happens;
@@ -203,8 +244,9 @@ export const SDK_INSTALL_MESSAGE =
 export async function ensureSdk(pluginDataDir: string, options: { install: boolean }): Promise<SdkReady> {
   const dir = usageDir(pluginDataDir);
   try {
-    const manifest = join(dir, "node_modules", "@qoder-ai", "qoder-agent-sdk", "package.json");
-    if (existsSync(manifest)) {
+    const globalManifest = join(dir, "node_modules", "@qoder-ai", "qoder-agent-sdk", "package.json");
+    const cnManifest = join(dir, "node_modules", "@qodercn-ai", "qodercn-agent-sdk", "package.json");
+    if (existsSync(globalManifest) && existsSync(cnManifest)) {
       await mkdir(dir, { recursive: true, mode: 0o700 });
       await writeFile(join(dir, "usage.mjs"), QODER_USAGE_SCRIPT, { mode: 0o600 });
       return { ok: true, error: null };
@@ -217,13 +259,13 @@ export async function ensureSdk(pluginDataDir: string, options: { install: boole
     const npm = await resolveNpm();
     if (!npm) return { ok: false, error: "未找到 npm，无法安装 Qoder SDK" };
     const node = await resolveNode();
-    console.log(`[qoder-usage] installing locked SDK runtime (qoder-agent-sdk@${SDK_VERSION}) into ${dir}`);
+    console.log(`[qoder-usage] installing locked SDK runtime (${SDK_VERSION}) into ${dir}`);
     await execCommand(npm, ["ci", "--prefix", dir, "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"], {
       timeout: 300000,
       maxBuffer: 8 * 1024 * 1024,
       env: { ...process.env, PATH: augmentedPath(dirname(node.command)) },
     });
-    if (!existsSync(manifest)) return { ok: false, error: "Qoder SDK 安装后未找到，请重试" };
+    if (!existsSync(globalManifest) || !existsSync(cnManifest)) return { ok: false, error: "Qoder SDK 安装后未找到，请重试" };
     return { ok: true, error: null };
   } catch (error) {
     return { ok: false, error: `准备 Qoder SDK 失败：${error instanceof Error ? error.message : String(error)}` };
@@ -254,21 +296,31 @@ function bucket(value: unknown): QuotaBucket | null {
   };
 }
 
-export async function fetchQuota(pluginDataDir: string, options: { install: boolean }): Promise<{ ok: true; snapshot: QuotaSnapshot } | { ok: false; error: string; needsInstall?: boolean }> {
+export async function fetchQuota(
+  pluginDataDir: string,
+  options: { install: boolean; site: QuotaSite },
+): Promise<{ ok: true; snapshot: QuotaSnapshot } | { ok: false; error: string; needsInstall?: boolean }> {
   const ready = await ensureSdk(pluginDataDir, options);
   if (!ready.ok) return { ok: false, error: ready.error ?? "Qoder SDK 未就绪", needsInstall: ready.needsInstall === true };
   const dir = usageDir(pluginDataDir);
   const node = await resolveNode();
-  const cli = await resolveQoderCli();
+  const cli = await resolveQoderCli(options.site);
+  if (!cli) {
+    return {
+      ok: false,
+      error: options.site === "qoder-cn" ? "未找到 qodercn，请先安装并登录 Qoder CN CLI" : "未找到 qodercli，请先安装并登录 Qoder CLI",
+    };
+  }
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     ...node.env,
-    PATH: augmentedPath(dirname(node.command), cli ? dirname(cli) : null),
+    PATH: augmentedPath(dirname(node.command), dirname(cli)),
+    AGENT_USAGE_QODER_SITE: options.site,
+    AGENT_USAGE_QODER_CLI_PATH: cli,
   };
-  if (cli) env.AGENT_USAGE_QODER_CLI_PATH = cli;
   const result = await runProcess(node.command, [join(dir, "usage.mjs")], { env, cwd: dir, timeoutMs: 90000, maxBytes: 1024 * 1024 });
   if (!result.ok) {
-    const detail = result.stderr.trim().split("\n").map((line) => line.trim()).filter(Boolean).slice(-2).join(" | ");
+    const detail = redact(result.stderr.trim().split("\n").map((line) => line.trim()).filter(Boolean).slice(-2).join(" | "));
     return { ok: false, error: result.error ? `${result.error}${detail ? `：${detail.slice(0, 300)}` : ""}` : "获取失败" };
   }
   const line = result.stdout.trim().split("\n").filter(Boolean).pop();
@@ -279,9 +331,16 @@ export async function fetchQuota(pluginDataDir: string, options: { install: bool
   } catch {
     return { ok: false, error: `无法解析 SDK 输出：${line.slice(0, 200)}` };
   }
-  if (parsed.ok !== true) return { ok: false, error: typeof parsed.error === "string" && parsed.error ? parsed.error : "获取失败" };
+  if (parsed.ok !== true) {
+    return { ok: false, error: typeof parsed.error === "string" && parsed.error ? redact(parsed.error) : "获取失败" };
+  }
   const usage = parsed.usage;
-  if (!usage || typeof usage !== "object") return { ok: false, error: "额度不可用（请确认本机 qodercli 已登录）" };
+  if (!usage || typeof usage !== "object") {
+    return {
+      ok: false,
+      error: options.site === "qoder-cn" ? "额度不可用（请确认本机 qodercn 已登录）" : "额度不可用（请确认本机 qodercli 已登录）",
+    };
+  }
   const record = usage as Record<string, unknown>;
   return {
     ok: true,
@@ -289,6 +348,7 @@ export async function fetchQuota(pluginDataDir: string, options: { install: bool
       ok: true,
       error: null,
       fetchedAt: Date.now(),
+      site: options.site,
       userType: strOrNull(record.userType),
       expiresAt: numOrNull(record.expiresAt),
       totalUsagePercentage: numOrNull(record.totalUsagePercentage),

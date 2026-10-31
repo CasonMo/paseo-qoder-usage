@@ -5,7 +5,7 @@ import { qoderConfigSetRpc, qoderQuotaGetRpc, qoderQuotaRefreshRpc, qoderSdkInst
 export function useQuotaState() {
   const call = useRpc(qoderQuotaGetRpc);
   return useQuery({
-    queryKey: ["qoder-quota"],
+    queryKey: ["qoder-quota", "sites"],
     queryFn: () => call({}),
     staleTime: 30_000,
     refetchInterval: 60_000,
