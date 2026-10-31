@@ -1,10 +1,17 @@
 {
   "id": "qoder-usage",
   "name": "Qoder Usage",
-  "description": "Qoder 账号额度（Credits）实时展示：侧边栏 + 全屏明细，支持配置定时自动更新 / Qoder account quota (Credits) in the sidebar plus a detail screen, with configurable auto refresh",
+  "description": "Shows Qoder and Qoder CN account credits, aggregating every logged-in site and refreshing each independently.",
+  "icon": "assets/icon.png",
   "media": [
     "assets/screenshot.png"
   ],
+  "translations": {
+    "zh-CN": {
+      "name": "Qoder 额度",
+      "description": "聚合展示 Qoder 与 Qoder CN 账号额度，支持各站点独立刷新。"
+    }
+  },
   "requirements": {
     "paseo": ">=0.11.2"
   }

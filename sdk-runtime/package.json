@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "dependencies": {
-    "@qoder-ai/qoder-agent-sdk": "1.0.53"
+    "@qoder-ai/qoder-agent-sdk": "1.0.53",
+    "@qodercn-ai/qodercn-agent-sdk": "1.0.58"
   }
 }

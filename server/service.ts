@@ -1,16 +1,23 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { QuotaSnapshot, QuotaState } from "../shared/quota";
+import { combinedCredits, type QuotaSite, type QuotaSnapshot, type QuotaState } from "../shared/quota";
 import { pluginDataDir } from "./paths";
-import { emptySnapshot, fetchQuota } from "./quota";
+import { detectAvailableSites, emptySnapshot, fetchQuota } from "./quota";
 
 const CONFIG_FILE = "config.json";
 const DEFAULT_INTERVAL_MINUTES = 30;
 const MAX_INTERVAL_MINUTES = 1440;
 
+interface SiteState {
+  site: QuotaSite;
+  snapshot: QuotaSnapshot;
+  fetching: boolean;
+  fetchPromise: Promise<void> | null;
+}
+
 export interface QoderUsageService {
   get(): Promise<QuotaState>;
-  refresh(): Promise<QuotaState>;
+  refresh(site?: QuotaSite): Promise<QuotaState>;
   setIntervalMinutes(minutes: number): Promise<QuotaState>;
   installSdk(): Promise<QuotaState>;
   stop(): void;
@@ -18,13 +25,38 @@ export interface QoderUsageService {
 
 export function createQoderUsageService(): QoderUsageService {
   const dir = pluginDataDir();
-  let snapshot: QuotaSnapshot = emptySnapshot(null);
   let intervalMinutes = DEFAULT_INTERVAL_MINUTES;
-  let fetching = false;
   let needsInstall = false;
-  let fetchPromise: Promise<void> | null = null;
   let stopped = false;
   let timer: ReturnType<typeof setInterval> | null = null;
+  const states = new Map<QuotaSite, SiteState>();
+
+  for (const site of detectAvailableSites()) {
+    states.set(site, {
+      site,
+      snapshot: { ...emptySnapshot(null), site },
+      fetching: false,
+      fetchPromise: null,
+    });
+  }
+
+  function syncAvailableSites(): void {
+    const available = detectAvailableSites();
+    for (const site of available) {
+      if (!states.has(site)) {
+        states.set(site, {
+          site,
+          snapshot: { ...emptySnapshot(null), site },
+          fetching: false,
+          fetchPromise: null,
+        });
+      }
+    }
+    const keep = new Set(available);
+    for (const site of [...states.keys()]) {
+      if (!keep.has(site)) states.delete(site);
+    }
+  }
 
   const loaded = (async () => {
     try {
@@ -50,53 +82,75 @@ export function createQoderUsageService(): QoderUsageService {
     timer = null;
     if (stopped || intervalMinutes === 0) return;
     timer = setInterval(() => {
-      void refreshOnce();
+      void refreshAll();
     }, intervalMinutes * 60_000);
     timer.unref?.();
   }
 
-  async function refreshOnce(install = false): Promise<void> {
+  async function refreshSite(site: QuotaSite, install = false): Promise<void> {
     if (stopped) return;
-    if (fetchPromise) return fetchPromise;
-    fetchPromise = (async () => {
-      fetching = true;
+    const state = states.get(site);
+    if (!state) return;
+    if (state.fetchPromise) return state.fetchPromise;
+
+    state.fetching = true;
+    state.fetchPromise = (async () => {
       try {
-        const result = await fetchQuota(dir, { install });
+        const result = await fetchQuota(dir, { install, site });
         if (result.ok) {
           needsInstall = false;
-          snapshot = result.snapshot;
-          console.log(`[qoder-usage] quota: ${snapshot.userQuota?.used ?? "?"}/${snapshot.userQuota?.total ?? "?"} credits`);
+          state.snapshot = result.snapshot;
+          const combined = combinedCredits(result.snapshot);
+          console.log(`[qoder-usage] ${site} quota: ${combined ? `${combined.used}/${combined.total}` : "?"} credits`);
         } else {
-          needsInstall = result.needsInstall === true;
-          snapshot = { ...snapshot, ok: false, error: result.error };
-          if (needsInstall) console.log("[qoder-usage] SDK not installed; waiting for explicit user confirmation");
-          else console.warn(`[qoder-usage] quota fetch failed: ${result.error}`);
+          if (result.needsInstall) needsInstall = true;
+          state.snapshot = { ...state.snapshot, ok: false, error: result.error, site };
+          if (result.needsInstall) {
+            console.log(`[qoder-usage] ${site} SDK not installed; waiting for explicit user confirmation`);
+          } else {
+            console.warn(`[qoder-usage] ${site} quota fetch failed: ${result.error}`);
+          }
         }
       } finally {
-        fetching = false;
+        state.fetching = false;
       }
     })();
+
     try {
-      await fetchPromise;
+      await state.fetchPromise;
     } finally {
-      fetchPromise = null;
+      state.fetchPromise = null;
+    }
+  }
+
+  async function refreshAll(install = false): Promise<void> {
+    for (const site of [...states.keys()]) {
+      await refreshSite(site, install);
     }
   }
 
   async function get(): Promise<QuotaState> {
     await loaded;
-    return { snapshot, intervalMinutes, fetching, needsInstall };
+    syncAvailableSites();
+    return {
+      sites: [...states.values()].map(({ site, snapshot, fetching }) => ({ site, snapshot, fetching })),
+      intervalMinutes,
+      needsInstall,
+    };
   }
 
-  async function refresh(): Promise<QuotaState> {
+  async function refresh(site?: QuotaSite): Promise<QuotaState> {
     await loaded;
-    await refreshOnce(false);
+    syncAvailableSites();
+    if (site) await refreshSite(site, false);
+    else await refreshAll(false);
     return get();
   }
 
   async function installSdk(): Promise<QuotaState> {
     await loaded;
-    await refreshOnce(true);
+    syncAvailableSites();
+    await refreshAll(true);
     return get();
   }
 
@@ -105,7 +159,7 @@ export function createQoderUsageService(): QoderUsageService {
     intervalMinutes = Math.min(MAX_INTERVAL_MINUTES, Math.max(0, Math.round(minutes)));
     await saveConfig().catch((error) => console.error("[qoder-usage] config save failed", error));
     schedule();
-    if (intervalMinutes > 0) void refreshOnce();
+    if (intervalMinutes > 0) void refreshAll();
     return get();
   }
 
@@ -117,8 +171,11 @@ export function createQoderUsageService(): QoderUsageService {
 
   void loaded.then(() => {
     schedule();
-    const stale = !snapshot.fetchedAt || (intervalMinutes > 0 && Date.now() - (snapshot.fetchedAt ?? 0) > intervalMinutes * 60_000);
-    if (!stopped && stale) void refreshOnce();
+    const stale = [...states.values()].some((state) => {
+      const at = state.snapshot.fetchedAt;
+      return !at || (intervalMinutes > 0 && Date.now() - at > intervalMinutes * 60_000);
+    });
+    if (!stopped && stale) void refreshAll();
   });
 
   return { get, refresh, setIntervalMinutes, installSdk, stop };

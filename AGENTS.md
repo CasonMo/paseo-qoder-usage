@@ -25,7 +25,7 @@ Paseo plugin requirements we must follow when developing, reviewing, and releasi
 
 ## Security
 
-- Never read, save, decrypt, print, log, or transmit qodercli credentials or tokens.
+- Never read, save, decrypt, print, log, or transmit qodercli/qodercn credentials or tokens.
   Quota reads go through the official Qoder Agent SDK, which reuses the local login on its
   own; the plugin only receives quota numbers.
 - The SDK download happens only after an explicit user action from the UI, from the npm

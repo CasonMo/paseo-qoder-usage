@@ -1,6 +1,8 @@
 import { defineRpc } from "@getpaseo/plugin";
 import { z } from "zod";
 
+export const quotaSiteSchema = z.enum(["qoder", "qoder-cn"]);
+
 export const quotaBucketSchema = z.object({
   used: z.number().nullable(),
   remaining: z.number().nullable(),
@@ -13,6 +15,7 @@ export const quotaSnapshotSchema = z.object({
   ok: z.boolean(),
   error: z.string().nullable(),
   fetchedAt: z.number().nullable(),
+  site: quotaSiteSchema.nullable(),
   userType: z.string().nullable(),
   expiresAt: z.number().nullable(),
   totalUsagePercentage: z.number().nullable(),
@@ -23,10 +26,15 @@ export const quotaSnapshotSchema = z.object({
   orgResourcePackage: quotaBucketSchema.nullable(),
 });
 
-export const quotaStateSchema = z.object({
+export const quotaSiteStateSchema = z.object({
+  site: quotaSiteSchema,
   snapshot: quotaSnapshotSchema,
-  intervalMinutes: z.number(),
   fetching: z.boolean(),
+});
+
+export const quotaStateSchema = z.object({
+  sites: z.array(quotaSiteStateSchema),
+  intervalMinutes: z.number(),
   needsInstall: z.boolean(),
 });
 
@@ -38,7 +46,7 @@ export const qoderQuotaGetRpc = defineRpc({
 
 export const qoderQuotaRefreshRpc = defineRpc({
   name: "qoder.quota.refresh",
-  input: z.object({}),
+  input: z.object({ site: quotaSiteSchema.optional() }),
   output: quotaStateSchema,
 });
 
@@ -68,4 +76,27 @@ export const qoderUpdateCheckRpc = defineRpc({
 
 export type QuotaBucket = z.infer<typeof quotaBucketSchema>;
 export type QuotaSnapshot = z.infer<typeof quotaSnapshotSchema>;
+export type QuotaSiteState = z.infer<typeof quotaSiteStateSchema>;
 export type QuotaState = z.infer<typeof quotaStateSchema>;
+export type QuotaSite = z.infer<typeof quotaSiteSchema>;
+
+/** Sums the account's credits pools for compact sidebar/log output. */
+export function combinedCredits(snapshot: QuotaSnapshot): { used: number; total: number; unit: string | null } | null {
+  const buckets = [snapshot.userQuota, snapshot.addOnQuota, snapshot.orgResourcePackage].filter(
+    (bucket): bucket is QuotaBucket => Boolean(bucket),
+  );
+  const unit = buckets.find((bucket) => bucket.unit)?.unit ?? null;
+  let used = 0;
+  let total = 0;
+  let counted = 0;
+  for (const bucket of buckets) {
+    if (unit && bucket.unit && bucket.unit !== unit) continue;
+    const bucketTotal = bucket.total ?? (bucket.used !== null && bucket.remaining !== null ? bucket.used + bucket.remaining : null);
+    const bucketUsed = bucket.used ?? (bucketTotal !== null && bucket.remaining !== null ? bucketTotal - bucket.remaining : null);
+    if (bucketUsed === null || bucketTotal === null) continue;
+    used += bucketUsed;
+    total += bucketTotal;
+    counted += 1;
+  }
+  return counted > 0 ? { used, total, unit } : null;
+}
