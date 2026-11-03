@@ -4,7 +4,8 @@ Paseo plugin: Qoder and Qoder CN account quota (Credits) in the sidebar plus a d
 
 - Shows every logged-in site: Qoder CN and/or Qoder international, each in its own card with an independent refresh button
 - Sidebar footer row: each site's combined credits (plan + add-on + organization resource package)
-- Screen: plan info, credits progress bars with 80%/95% warning colors, quota-exceeded notice, manual refresh
+- Screen: personal total (account credits + Org resource package), plan info, credits progress bars with 80%/95% warning colors, quota-exceeded notice, manual refresh
+- UI follows the Paseo app language (English / 简体中文)
 - Auto refresh: off / 5m / 15m / 30m / 1h / 6h / 24h
 - Update check: a banner appears at the top of the quota screen when the registry listing has a newer version (reads only the public registry record and the pinned package.json; no user data is sent)
 
@@ -33,7 +34,8 @@ Paseo 插件：在侧边栏展示 Qoder / Qoder CN 账号额度（Credits），�
 
 - 自动聚合所有已登录站点：Qoder CN 和/或 Qoder 国际版，各自独立卡片、独立刷新
 - 侧边栏底部行：各站点合计额度（Plan + Add-on + Org 资源包）
-- 明细页：套餐信息、额度进度条（80% / 95% 变色预警）、额度用尽提醒、手动刷新
+- 明细页：个人总量（账号额度 + Org 资源包）、套餐信息、额度进度条（80% / 95% 变色预警）、额度用尽提醒、手动刷新
+- 界面文案跟随 Paseo 语言设置（English / 简体中文）
 - 自动刷新：关闭 / 5 分钟 / 15 分钟 / 30 分钟 / 1 小时 / 6 小时 / 24 小时
 - 更新检查：registry 上有新版本时，额度页顶部显示横幅（仅读取公开的 registry 记录与对应提交的 package.json；不发送任何用户数据）
 

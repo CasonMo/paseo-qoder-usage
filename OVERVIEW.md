@@ -2,7 +2,7 @@
 
 View Qoder and Qoder CN account credits inside Paseo.
 
-The plugin detects logins under `~/.qoder` and `~/.qoder-cn` and aggregates every logged-in site on one quota screen: Qoder CN when available, Qoder international when available, and both when both exist. Each site is a separate card with its own refresh button, so refreshing one site does not block the other. The sidebar row shows each site's combined credits (Plan + Add-on + Org resource package, for example `CN 0/3000 · Qoder 0/6000`). Each card shows plan type and expiry, Plan Credits, Add-on Credits, and the Org resource package, with progress bars changing color at 80% and 95%, plus a quota-exceeded notice and manual refresh.
+The plugin detects logins under `~/.qoder` and `~/.qoder-cn` and aggregates every logged-in site on one quota screen: Qoder CN when available, Qoder international when available, and both when both exist. Each site is a separate card with its own refresh button, so refreshing one site does not block the other. The sidebar row shows each site's combined credits (Plan + Add-on + Org resource package, for example `CN 0/3000 · Qoder 0/6000`). Each card first shows the personal total (account credits + Org resource package), then plan type and expiry; when an account has several credit pools it also lists Plan Credits, Add-on Credits, and the Org resource package separately. Progress bars change color at 80% and 95%, and each card has a quota-exceeded notice and manual refresh. The interface follows the Paseo app language (English / 简体中文).
 
 ## How it works
 

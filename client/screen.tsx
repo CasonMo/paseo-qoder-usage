@@ -1,30 +1,21 @@
-import type { PluginScreenProps } from "@getpaseo/plugin/client";
+import { useTranslation, type PluginScreenProps } from "@getpaseo/plugin/client";
 import { useMemo, useState } from "react";
 import type { TextStyle, ViewStyle } from "react-native";
 import { Pressable, ScrollView, Text, View } from "react-native";
-import type { QuotaBucket, QuotaSite, QuotaSiteState } from "../shared/quota";
+import { combinedCredits, type QuotaBucket, type QuotaSite, type QuotaSiteState } from "../shared/quota";
 import { useQuotaActions, useQuotaState, useUpdateCheck } from "./data";
 import { formatDate, formatNumber, formatTime, percentageOf } from "./format";
+import { translations } from "./i18n";
 
-const INTERVALS: Array<{ minutes: number; label: string }> = [
-  { minutes: 0, label: "关闭" },
-  { minutes: 5, label: "5 分钟" },
-  { minutes: 15, label: "15 分钟" },
-  { minutes: 30, label: "30 分钟" },
-  { minutes: 60, label: "1 小时" },
-  { minutes: 360, label: "6 小时" },
-  { minutes: 1440, label: "24 小时" },
-];
-
-function siteLabel(site: QuotaSite): string {
-  return site === "qoder-cn" ? "Qoder CN" : "Qoder 国际版";
-}
-
-function bucketText(bucket: QuotaBucket): string {
-  const total = bucket.total ?? (bucket.used !== null && bucket.remaining !== null ? bucket.used + bucket.remaining : null);
-  const percentage = percentageOf(bucket.percentage);
-  return `${formatNumber(bucket.used)} / ${formatNumber(total)}${percentage !== null ? `（${Math.round(percentage)}%）` : ""}`;
-}
+const INTERVALS = [
+  { minutes: 0, label: "screen.intervalOff" },
+  { minutes: 5, label: "screen.interval5" },
+  { minutes: 15, label: "screen.interval15" },
+  { minutes: 30, label: "screen.interval30" },
+  { minutes: 60, label: "screen.interval60" },
+  { minutes: 360, label: "screen.interval360" },
+  { minutes: 1440, label: "screen.interval1440" },
+] as const;
 
 function bucketShare(bucket: QuotaBucket): number {
   const percentage = percentageOf(bucket.percentage);
@@ -43,6 +34,19 @@ export function QoderUsageScreen({ theme, layout }: PluginScreenProps) {
   const [installing, setInstalling] = useState(false);
   const [updateDismissed, setUpdateDismissed] = useState(false);
   const updateQuery = useUpdateCheck();
+  const { t } = useTranslation(translations);
+
+  const siteLabel = (site: QuotaSite): string => t(site === "qoder-cn" ? "screen.siteCn" : "screen.siteGlobal");
+
+  const bucketText = (bucket: QuotaBucket): string => {
+    const total = bucket.total ?? (bucket.used !== null && bucket.remaining !== null ? bucket.used + bucket.remaining : null);
+    const percentage = percentageOf(bucket.percentage);
+    const used = formatNumber(bucket.used);
+    const totalText = formatNumber(total);
+    return percentage !== null
+      ? t("screen.valuePercent", { used, total: totalText, percent: Math.round(percentage) })
+      : t("screen.value", { used, total: totalText });
+  };
 
   const styles = useMemo(
     () =>
@@ -136,9 +140,17 @@ export function QoderUsageScreen({ theme, layout }: PluginScreenProps) {
     }
   };
 
-  const renderBucket = (label: string, bucket: QuotaBucket | null, tone: string) => {
+  const toneFor = (percentage: number | null): string =>
+    percentage !== null && percentage >= 95
+      ? theme.colors.statusDanger
+      : percentage !== null && percentage >= 80
+        ? theme.colors.statusWarning
+        : theme.colors.accent;
+
+  const renderBucket = (label: string, bucket: QuotaBucket | null) => {
     if (!bucket) return null;
     const share = bucketShare(bucket);
+    const tone = toneFor(share);
     return (
       <View key={label} style={styles.bucketRow}>
         <View style={styles.bucketHeader}>
@@ -156,21 +168,26 @@ export function QoderUsageScreen({ theme, layout }: PluginScreenProps) {
   const renderSite = (state: QuotaSiteState) => {
     const { site, snapshot, fetching } = state;
     const refreshing = refreshingSites[site] === true || fetching;
-    const percentages = [
-      snapshot.totalUsagePercentage,
-      snapshot.userQuota?.percentage,
-      snapshot.addOnQuota?.percentage,
-      snapshot.orgResourcePackage?.percentage,
-    ]
-      .map(percentageOf)
-      .filter((value): value is number => value !== null);
-    const percentage = percentages.length > 0 ? Math.max(...percentages) : null;
-    const tone =
-      percentage !== null && percentage >= 95
-        ? theme.colors.statusDanger
-        : percentage !== null && percentage >= 80
-          ? theme.colors.statusWarning
-          : theme.colors.accent;
+    const combined = combinedCredits(snapshot);
+    const combinedShare = combined && combined.total > 0 ? (combined.used / combined.total) * 100 : null;
+    const combinedBucket: QuotaBucket | null = combined
+      ? {
+          used: combined.used,
+          remaining: Math.max(0, combined.total - combined.used),
+          total: combined.total,
+          percentage: combinedShare,
+          unit: combined.unit,
+        }
+      : null;
+    const buckets: Array<{ labelKey: "screen.bucketPlan" | "screen.bucketAddOn" | "screen.bucketOrg"; bucket: QuotaBucket }> = [
+      { labelKey: "screen.bucketPlan", bucket: snapshot.userQuota },
+      { labelKey: "screen.bucketAddOn", bucket: snapshot.addOnQuota },
+      { labelKey: "screen.bucketOrg", bucket: snapshot.orgResourcePackage },
+    ].filter(
+      (item): item is { labelKey: "screen.bucketPlan" | "screen.bucketAddOn" | "screen.bucketOrg"; bucket: QuotaBucket } =>
+        Boolean(item.bucket),
+    );
+    const exhausted = combinedShare !== null ? combinedShare >= 100 : snapshot.isQuotaExceeded === true;
     const hasData = Boolean(snapshot.fetchedAt);
 
     return (
@@ -180,20 +197,22 @@ export function QoderUsageScreen({ theme, layout }: PluginScreenProps) {
             <Text style={styles.siteName}>{siteLabel(site)}</Text>
             <Text style={styles.planLine}>
               {hasData
-                ? `Plan：${snapshot.userType ?? "—"}${snapshot.expiresAt ? ` · 到期 ${formatDate(snapshot.expiresAt)}` : ""}`
+                ? `${t("screen.plan", { type: snapshot.userType ?? "—" })}${
+                    snapshot.expiresAt ? t("screen.expires", { date: formatDate(snapshot.expiresAt) }) : ""
+                  }`
                 : refreshing
-                  ? "正在读取账号…"
-                  : "等待读取账号…"}
+                  ? t("screen.readingAccount")
+                  : t("screen.waitingAccount")}
             </Text>
           </View>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`刷新 ${siteLabel(site)} 额度`}
+            accessibilityLabel={t("screen.refreshLabel", { site: siteLabel(site) })}
             disabled={refreshing || installing}
             style={styles.button}
             onPress={() => void refreshSite(site)}
           >
-            <Text style={styles.buttonText}>{refreshing ? "刷新中…" : "刷新"}</Text>
+            <Text style={styles.buttonText}>{refreshing ? t("screen.refreshing") : t("screen.refresh")}</Text>
           </Pressable>
         </View>
 
@@ -205,23 +224,22 @@ export function QoderUsageScreen({ theme, layout }: PluginScreenProps) {
 
         {hasData ? (
           <>
-            {renderBucket("Plan Credits", snapshot.userQuota ?? null, tone)}
-            {renderBucket("Add-on Credits", snapshot.addOnQuota ?? null, tone)}
-            {renderBucket("Org 资源包", snapshot.orgResourcePackage ?? null, tone)}
-            {snapshot.userQuota && snapshot.orgResourcePackage ? (
-              <Text style={styles.footer}>团队账号：Plan Credits 与 Org 资源包是不同额度池。</Text>
-            ) : null}
+            {combinedBucket ? renderBucket(t("screen.bucketTotal"), combinedBucket) : null}
+            {combinedBucket && buckets.length === 1
+              ? null
+              : buckets.map((item) => renderBucket(t(item.labelKey), item.bucket))}
+            {combinedBucket && buckets.length > 1 ? <Text style={styles.footer}>{t("screen.totalHint")}</Text> : null}
             {site === "qoder-cn" && snapshot.orgResourcePackage && !snapshot.userQuota ? (
-              <Text style={styles.footer}>企业账号：额度来自组织资源包。</Text>
+              <Text style={styles.footer}>{t("screen.enterpriseHint")}</Text>
             ) : null}
-            {snapshot.isQuotaExceeded ? <Text style={styles.errorText}>额度已用尽，请及时充值或升级</Text> : null}
+            {exhausted ? <Text style={styles.errorText}>{t("screen.exhausted")}</Text> : null}
             <Text style={styles.footer}>
-              官方口径：账号计费周期 Credits（覆盖所有客户端）
-              {snapshot.fetchedAt ? ` · 更新于 ${formatTime(snapshot.fetchedAt)}` : ""}
+              {t("screen.official")}
+              {snapshot.fetchedAt ? t("screen.updated", { time: formatTime(snapshot.fetchedAt) }) : ""}
             </Text>
           </>
         ) : !snapshot.error ? (
-          <Text style={styles.footer}>{refreshing ? "正在获取额度…" : "尚未获取到额度。"}</Text>
+          <Text style={styles.footer}>{refreshing ? t("screen.fetching") : t("screen.noQuota")}</Text>
         ) : null}
       </View>
     );
@@ -232,17 +250,26 @@ export function QoderUsageScreen({ theme, layout }: PluginScreenProps) {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.headerRow}>
           <View style={{ gap: 2, flexShrink: 1 }}>
-            <Text style={styles.title}>Qoder 额度</Text>
-            <Text style={styles.subtitle}>自动展示本机所有已登录站点，额度在各自卡片内独立刷新</Text>
+            <Text style={styles.title}>{t("screen.title")}</Text>
+            <Text style={styles.subtitle}>{t("screen.subtitle")}</Text>
           </View>
         </View>
 
         {updateQuery.data?.updateAvailable && !updateDismissed ? (
           <View style={styles.updateBanner}>
             <Text style={styles.updateText}>
-              发现新版本 v{updateQuery.data.latestVersion}（当前 v{updateQuery.data.currentVersion}）· 更新：paseo plugin update qoder-usage
+              {t("screen.update", {
+                latest: updateQuery.data.latestVersion,
+                current: updateQuery.data.currentVersion,
+                command: "paseo plugin update qoder-usage",
+              })}
             </Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="关闭" onPress={() => setUpdateDismissed(true)} style={styles.updateDismiss}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("screen.dismiss")}
+              onPress={() => setUpdateDismissed(true)}
+              style={styles.updateDismiss}
+            >
               <Text style={styles.updateDismissText}>✕</Text>
             </Pressable>
           </View>
@@ -250,28 +277,26 @@ export function QoderUsageScreen({ theme, layout }: PluginScreenProps) {
 
         {needsInstall ? (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>需要安装 Qoder SDK</Text>
-            <Text style={styles.footer}>
-              读取额度需要下载 Qoder Agent SDK（国际版 + 国内版，来自 npm registry，含锁定依赖约 30MB）。在你确认之前不会进行任何下载。
-            </Text>
+            <Text style={styles.sectionTitle}>{t("screen.installTitle")}</Text>
+            <Text style={styles.footer}>{t("screen.installBody")}</Text>
             <Pressable style={styles.installButton} disabled={installing} onPress={() => void installNow()}>
-              <Text style={styles.installButtonText}>{installing ? "安装中…" : "下载并安装"}</Text>
+              <Text style={styles.installButtonText}>{installing ? t("screen.installing") : t("screen.installAction")}</Text>
             </Pressable>
-            <Text style={styles.footer}>不安装也可以继续使用 Paseo，这里只影响额度显示。</Text>
+            <Text style={styles.footer}>{t("screen.installHint")}</Text>
           </View>
         ) : null}
 
         {sites.length === 0 ? (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>未检测到已登录账号</Text>
-            <Text style={styles.footer}>请先运行 qodercli 或 qodercn 完成登录，然后刷新。</Text>
+            <Text style={styles.sectionTitle}>{t("screen.noAccountTitle")}</Text>
+            <Text style={styles.footer}>{t("screen.noAccountBody")}</Text>
           </View>
         ) : (
           sites.map(renderSite)
         )}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>自动更新</Text>
+          <Text style={styles.sectionTitle}>{t("screen.autoRefresh")}</Text>
           <View style={styles.chipRow}>
             {INTERVALS.map((item) => {
               const active = item.minutes === intervalMinutes;
@@ -282,12 +307,12 @@ export function QoderUsageScreen({ theme, layout }: PluginScreenProps) {
                   onPress={() => void changeInterval(item.minutes)}
                   style={active ? [styles.chip, styles.chipActive] : styles.chip}
                 >
-                  <Text style={active ? [styles.chipText, styles.chipTextActive] : styles.chipText}>{item.label}</Text>
+                  <Text style={active ? [styles.chipText, styles.chipTextActive] : styles.chipText}>{t(item.label)}</Text>
                 </Pressable>
               );
             })}
           </View>
-          <Text style={styles.footer}>每隔所选时间在后台获取一次额度；「关闭」后仅手动刷新。设置保存在本机。</Text>
+          <Text style={styles.footer}>{t("screen.autoRefreshHint")}</Text>
         </View>
       </ScrollView>
     </View>
