@@ -156,9 +156,15 @@ export function QoderUsageScreen({ theme, layout }: PluginScreenProps) {
   const renderSite = (state: QuotaSiteState) => {
     const { site, snapshot, fetching } = state;
     const refreshing = refreshingSites[site] === true || fetching;
-    const percentage = percentageOf(
-      snapshot.totalUsagePercentage ?? snapshot.userQuota?.percentage ?? snapshot.orgResourcePackage?.percentage ?? null,
-    );
+    const percentages = [
+      snapshot.totalUsagePercentage,
+      snapshot.userQuota?.percentage,
+      snapshot.addOnQuota?.percentage,
+      snapshot.orgResourcePackage?.percentage,
+    ]
+      .map(percentageOf)
+      .filter((value): value is number => value !== null);
+    const percentage = percentages.length > 0 ? Math.max(...percentages) : null;
     const tone =
       percentage !== null && percentage >= 95
         ? theme.colors.statusDanger

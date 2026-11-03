@@ -4,8 +4,8 @@ export function formatNumber(value: number | null): string {
 }
 
 /** Qoder reports percentage on a 0..100 scale (16 means 16%, 1 means 1%). */
-export function percentageOf(value: number | null): number | null {
-  if (value === null) return null;
+export function percentageOf(value: number | null | undefined): number | null {
+  if (value === null || value === undefined) return null;
   return Math.max(0, Math.min(100, value));
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "paseo-qoder-usage",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Shows Qoder and Qoder CN account credits, aggregating every logged-in site and refreshing each independently.",
   "license": "MIT",
   "repository": {

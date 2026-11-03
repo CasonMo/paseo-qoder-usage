@@ -296,6 +296,18 @@ function bucket(value: unknown): QuotaBucket | null {
   };
 }
 
+/**
+ * The official CLI prints the org package as `used/(used + remaining)`: `cap` is the
+ * organization pool, not the allotment shown for this account.
+ */
+function orgBucket(value: unknown): QuotaBucket | null {
+  const parsed = bucket(value);
+  if (!parsed) return null;
+  const total = parsed.used !== null && parsed.remaining !== null ? parsed.used + parsed.remaining : parsed.total;
+  const percentage = parsed.used !== null && total ? (parsed.used / total) * 100 : parsed.percentage;
+  return { ...parsed, total, percentage };
+}
+
 export async function fetchQuota(
   pluginDataDir: string,
   options: { install: boolean; site: QuotaSite },
@@ -356,7 +368,7 @@ export async function fetchQuota(
       upgradeUrl: strOrNull(record.upgradeUrl),
       userQuota: bucket(record.userQuota),
       addOnQuota: bucket(record.addOnQuota),
-      orgResourcePackage: bucket(record.orgResourcePackage),
+      orgResourcePackage: orgBucket(record.orgResourcePackage),
     },
   };
 }
