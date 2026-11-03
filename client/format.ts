@@ -3,10 +3,10 @@ export function formatNumber(value: number | null): string {
   return Number.isInteger(value) ? `${value}` : value.toFixed(1);
 }
 
-/** Qoder returns a 0..1 share; older snapshots may already be 0..100. */
+/** Qoder reports percentage on a 0..100 scale (16 means 16%, 1 means 1%). */
 export function percentageOf(value: number | null): number | null {
   if (value === null) return null;
-  return Math.max(0, Math.min(100, value <= 1 ? value * 100 : value));
+  return Math.max(0, Math.min(100, value));
 }
 
 export function formatDate(ts: number): string {
